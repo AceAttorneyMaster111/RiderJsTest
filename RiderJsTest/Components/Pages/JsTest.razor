@@ -1,0 +1,84 @@
+@page "/JsTest"
+@inject IJSRuntime JsRuntime
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+<h3>JsTest</h3>
+
+<style>
+    .highlight {
+        background-color: #ff8;
+    }
+</style>
+
+<table class="widget-container">
+    <tr class="widget">
+        <td>Col 1</td>
+        <td>Col 2</td>
+        <td>1</td>
+    </tr>
+    <tr class="widget">
+        <td>Col 1</td>
+        <td>Col 2</td>
+        <td>2</td>
+    </tr>
+    <tr class="widget">
+        <td>Col 1</td>
+        <td>Col 2</td>
+        <td>3</td>
+    </tr>
+</table>
+
+<p>You clicked on row @WidgetNumber</p>
+
+@code {
+    private IJSObjectReference? module;
+    private DotNetObjectReference<JsTest>? objRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        Console.WriteLine("Afterrender");
+        if (firstRender)
+        {
+            module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./Components/Pages/JsTest.razor.js");
+            await module.InvokeVoidAsync("addInteractions");
+            objRef = DotNetObjectReference.Create(this);
+            await JsRuntime.InvokeVoidAsync("jsTestInteractions.addingWidgetHover", ".widget-container", objRef, "OnRowMouseOver");
+            await JsRuntime.InvokeVoidAsync("jsTestInteractions.addingWidgetHoverOut", ".widget-container", objRef, "OnRowMouseOut");
+            await JsRuntime.InvokeVoidAsync("jsTestInteractions.addingWidgetClick", ".widget-container", objRef, "OnRowClick");
+        }
+    }
+
+    public int WidgetNumber { get; set; }
+    
+    [JSInvokable]
+    public async Task OnRowMouseOver(string selector)
+    {
+        Console.WriteLine("Mouseover detected by C#");
+        await JsRuntime.InvokeVoidAsync("jsTestInteractions.addingWidgetHighlight", selector);
+    }
+
+    [JSInvokable]
+    public async Task OnRowMouseOut(string selector)
+    {
+        Console.WriteLine("Mouseout detected by C#");
+        await JsRuntime.InvokeVoidAsync("jsTestInteractions.addingWidgetUnhighlight", selector);
+    }
+
+    [JSInvokable]
+    public async Task OnRowClick(string selector, int x, int y)
+    {
+        Console.WriteLine($"Click detected by C# at {x}, {y}");
+        WidgetNumber = await JsRuntime.InvokeAsync<int>("jsTestInteractions.addingWidgetGetWidgetNumber", selector); // Has side effect of unhighlighting row
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null)
+        {
+            await module.DisposeAsync();
+        }
+        objRef?.Dispose();
+    }
+
+}
